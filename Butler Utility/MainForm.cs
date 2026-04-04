@@ -72,8 +72,8 @@ namespace ItchioButlerUtility
             }
 
             string updateUrl = isInstalled
-                ? "https://raw.githubusercontent.com/CgViking/Butler-Utility/main/updater-installed.xml"
-                : "https://raw.githubusercontent.com/CgViking/Butler-Utility/main/updater-portable.xml";
+                ? "https://raw.githubusercontent.com/CgViking/Itch.io-Butler-Utility/main/updater-installed.xml"
+                : "https://raw.githubusercontent.com/CgViking/Itch.io-Butler-Utility/main/updater-portable.xml";
 
             AutoUpdater.Start(updateUrl);
         }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <item>
-    <version>1.1.0</version>
-    <url>https://github.com/CgViking/Butler-Utility/releases/latest/download/ButlerUtilitySetup.exe</url>
-    <changelog>https://github.com/CgViking/Butler-Utility/releases</changelog>
+    <version>1.1.1</version>
+    <url>https://github.com/CgViking/Itch.io-Butler-Utility/releases/latest/download/ButlerUtilitySetup.exe</url>
+    <changelog>https://github.com/CgViking/Itch.io-Butler-Utility/releases</changelog>
     <mandatory>false</mandatory>
     <args>/SILENT</args>
 </item>
