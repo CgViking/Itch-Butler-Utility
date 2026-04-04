@@ -29,7 +29,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-OutputBaseFilename=mysetup
+OutputBaseFilename={#MyAppName} Setup
 SetupIconFile=C:\Users\bjorn\RiderProjects\Butler Utility\Butler Utility\app.ico
 SolidCompression=yes
 WizardStyle=modern
