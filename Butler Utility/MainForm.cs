@@ -99,6 +99,19 @@ namespace ItchioButlerUtility
             {
                 Action action = () => UpdateUI("Update available!", System.Drawing.Color.Orange);
                 if (InvokeRequired) Invoke(action); else action();
+
+                try
+                {
+                    if (AutoUpdater.DownloadUpdate(args))
+                    {
+                        Application.Exit();
+                    }
+                }
+                catch (Exception)
+                {
+                    Action errorAction = () => UpdateUI("Update failed", System.Drawing.Color.Red);
+                    if (InvokeRequired) Invoke(errorAction); else errorAction();
+                }
             }
             else
             {

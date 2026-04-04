@@ -3,7 +3,7 @@
 ; Non-commercial use only
 
 #define MyAppName "Itch.io Butler Utility"
-#define MyAppVersion "1.1"
+#define MyAppVersion "1.0"
 #define MyAppPublisher "CgViking"
 #define MyAppExeName "Itch.io Butler Utility.exe"
 
