@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # The release workflow pins actions to major tags; this keeps those majors current
+  # rather than letting them silently age out of support.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci

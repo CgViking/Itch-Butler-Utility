@@ -1,0 +1,341 @@
+name: Release
+
+# Releasing is: git tag -a v1.2.0 -m "..." && git push origin v1.2.0
+#
+# The tag is the single source of truth for the version. Nothing in the repo is
+# hand-bumped: the version is injected into the build (-p:Version) and into the
+# installer (/DMyAppVersion), and the update feeds on main are rewritten by the
+# announce-update job once the release is live.
+#
+# Tag grammar:
+#   v1.2.0        -> real release, published immediately, feeds bumped
+#   v0.0.1-test   -> draft prerelease, feeds untouched (safe end-to-end test)
+#   anything else -> hard fail
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and upload workflow artifacts only; do not create a GitHub Release.'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROJECT: ButlerUtility.App/ButlerUtility.App.csproj
+  PUBLISH_DIR: ButlerUtility.App/bin/Release/net8.0/win-x64/publish
+  ISS: Setup/ButlerSetupFile.iss
+  SETUP_OUT: Setup/Output/ButlerUtilitySetup.exe
+  APP_EXE: Itch.io Butler Utility.exe
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  build-and-release:
+    # Pinned rather than windows-latest: the alias has moved twice in a year and a
+    # release pipeline should not change underneath you.
+    runs-on: windows-2025
+    timeout-minutes: 45
+    permissions:
+      contents: write # create the release and upload assets
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      is_prerelease: ${{ steps.ver.outputs.is_prerelease }}
+      should_release: ${{ steps.ver.outputs.should_release }}
+
+    steps:
+      # .git is ~250 MB because butler.exe is committed. Never fetch full history.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Resolve version and release mode
+        id: ver
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $isTag  = ('${{ github.ref_type }}' -eq 'tag')
+          $dryRun = ('${{ inputs.dry_run }}' -eq 'true')
+          $isPre  = $false
+
+          if ($isTag) {
+            $tag = '${{ github.ref_name }}'
+            if ($tag -notmatch '^v(\d+\.\d+\.\d+)(-[0-9A-Za-z.\-]+)?$') {
+              throw "Tag '$tag' is not a release tag. Use v1.2.3, or v1.2.3-suffix for a test build."
+            }
+            $version = $Matches[1]
+            $isPre   = [bool]$Matches[2]
+          } else {
+            # Dispatch off a branch: dry-run build, version comes from the csproj fallback.
+            $tag = ''
+            $version = ([xml](Get-Content -LiteralPath $env:PROJECT -Raw)
+                       ).SelectSingleNode('/Project/PropertyGroup/Version').InnerText.Trim()
+          }
+
+          $shouldRelease = ($isTag -and -not $dryRun)
+
+          @(
+            "tag=$tag"
+            "version=$version"
+            "is_prerelease=$($isPre.ToString().ToLower())"
+            "should_release=$($shouldRelease.ToString().ToLower())"
+          ) | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          Write-Host "tag='$tag' version=$version prerelease=$isPre release=$shouldRelease"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: ButlerUtility.App/packages.lock.json
+
+      # --locked-mode: a lock file that no longer matches the csproj fails the build
+      # instead of silently resolving a different Avalonia patch.
+      - name: Restore
+        run: |
+          dotnet restore "$env:PROJECT" -r win-x64 --locked-mode
+          if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
+
+      # Publish the csproj, not "Butler Utility.sln" — avoids the space in the sln name.
+      - name: Publish (win-x64, self-contained)
+        run: |
+          dotnet publish "$env:PROJECT" -c Release -r win-x64 --self-contained true `
+            --no-restore -p:Version=${{ steps.ver.outputs.version }}
+          if ($LASTEXITCODE -ne 0) { throw "publish failed ($LASTEXITCODE)" }
+
+      - name: Verify publish output
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $env:PUBLISH_DIR $env:APP_EXE
+
+          # ButlerService resolves butler via AppContext.BaseDirectory, so these two
+          # must stay adjacent in whatever we ship.
+          foreach ($required in @($env:APP_EXE, 'butler.exe')) {
+            $p = Join-Path $env:PUBLISH_DIR $required
+            if (-not (Test-Path -LiteralPath $p)) { throw "Missing from publish output: $required" }
+          }
+
+          $count = (Get-ChildItem -LiteralPath $env:PUBLISH_DIR -Recurse -File).Count
+          if ($count -lt 150) { throw "Publish output has $count files; expected ~221." }
+
+          # Proves -p:Version actually reached the assembly.
+          $want = [version]'${{ steps.ver.outputs.version }}'
+          $got  = [version](Get-Item -LiteralPath $exe).VersionInfo.FileVersion
+          if ($got.Major -ne $want.Major -or $got.Minor -ne $want.Minor -or $got.Build -ne $want.Build) {
+            throw "Built exe reports FileVersion '$got' but the version should be '$want'."
+          }
+          Write-Host "Publish OK: $count files, FileVersion $got"
+
+      # Inno Setup ships on the runner image; the install is insurance only.
+      - name: Locate Inno Setup
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Find-ISCC {
+            $candidates = @(
+              "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+              "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+              "$env:ProgramFiles\Inno Setup 7\ISCC.exe"
+              "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe"
+            ) | Where-Object { Test-Path -LiteralPath $_ }
+            if ($candidates) { return $candidates[0] }
+            $cmd = Get-Command iscc -ErrorAction SilentlyContinue
+            if ($cmd) { return $cmd.Source }
+            return $null
+          }
+
+          $iscc = Find-ISCC
+          if (-not $iscc) {
+            Write-Host "::warning::Inno Setup not on the image; installing from Chocolatey."
+            choco install innosetup -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "choco install innosetup failed ($LASTEXITCODE)" }
+            $iscc = Find-ISCC
+          }
+          if (-not $iscc) { throw "ISCC.exe not found." }
+
+          # ArchitecturesAllowed=x64compatible needs Inno Setup 6.3+.
+          $raw = (Get-Item -LiteralPath $iscc).VersionInfo.ProductVersion
+          if ($raw -notmatch '(\d+)\.(\d+)') { throw "Cannot parse ISCC version '$raw'." }
+          if ([version]"$($Matches[1]).$($Matches[2])" -lt [version]'6.3') {
+            throw "Found Inno Setup $raw; ArchitecturesAllowed=x64compatible needs 6.3 or newer."
+          }
+
+          Write-Host "Using $iscc (Inno Setup $raw)"
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Compile installer
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ steps.ver.outputs.version }}'
+
+          # The .iss guards its #define with #ifndef, so this value wins. ISCC sets
+          # SourceDir to the script's own directory, so the script's relative PublishDir
+          # and its default OutputDir (Setup\Output) both resolve regardless of cwd.
+          & "$env:ISCC" /Q "/DMyAppVersion=$version" "$env:ISS"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+          if (-not (Test-Path -LiteralPath $env:SETUP_OUT)) { throw "No installer at $env:SETUP_OUT" }
+
+          # Inno derives VersionInfoVersion from AppVersion, so this confirms /D landed.
+          $stamped = (Get-Item -LiteralPath $env:SETUP_OUT).VersionInfo.FileVersion
+          if ([string]::IsNullOrWhiteSpace($stamped)) {
+            Write-Host "::warning::Installer carries no version resource; skipping version assertion."
+          } else {
+            $got = [version]$stamped; $want = [version]$version
+            if ($got.Major -ne $want.Major -or $got.Minor -ne $want.Minor -or $got.Build -ne $want.Build) {
+              throw "Installer is stamped '$got' but the version should be '$want'."
+            }
+          }
+          "Installer OK: {0:N1} MB, version $stamped" -f ((Get-Item -LiteralPath $env:SETUP_OUT).Length / 1MB)
+
+      - name: Assemble assets
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+
+          # The trailing \* is load-bearing: it puts each item at the ARCHIVE ROOT.
+          # Without it everything nests under a 'publish' folder and the app can no
+          # longer find butler.exe next to itself.
+          Compress-Archive -Path (Join-Path $env:PUBLISH_DIR '*') `
+                           -DestinationPath 'artifacts/ButlerUtility.zip' `
+                           -CompressionLevel Optimal -Force
+
+          Copy-Item -LiteralPath $env:SETUP_OUT -Destination 'artifacts/ButlerUtilitySetup.exe' -Force
+
+      - name: Verify zip layout
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path 'artifacts/ButlerUtility.zip').Path)
+          try { $names = @($zip.Entries | ForEach-Object { $_.FullName }) } finally { $zip.Dispose() }
+
+          foreach ($required in @($env:APP_EXE, 'butler.exe')) {
+            if ($names -notcontains $required) {
+              throw "'$required' is not at the zip root. First entries: $(($names | Select-Object -First 5) -join ', ')"
+            }
+          }
+          if ($names.Count -lt 150) { throw "Zip has $($names.Count) entries; expected ~221." }
+          Write-Host "Zip OK: $($names.Count) entries, app and butler adjacent at root."
+
+      - name: Checksums and summary
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Push-Location artifacts
+          try {
+            Get-ChildItem -File | Where-Object { $_.Name -ne 'SHA256SUMS.txt' } | ForEach-Object {
+              "{0}  {1}" -f (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+            } | Out-File -FilePath 'SHA256SUMS.txt' -Encoding ascii
+
+            "## Assets (version ${{ steps.ver.outputs.version }})`n" | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            "| Asset | Size | SHA256 |"                             | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            "|---|---|---|"                                         | Out-File $env:GITHUB_STEP_SUMMARY -Append
+            Get-ChildItem -File | ForEach-Object {
+              $h = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLower()
+              "| {0} | {1:N1} MB | ``{2}`` |" -f $_.Name, ($_.Length / 1MB), $h |
+                Out-File $env:GITHUB_STEP_SUMMARY -Append
+            }
+          } finally { Pop-Location }
+
+      # Always produced — this is what you inspect after a dry run.
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: butler-utility-${{ steps.ver.outputs.version }}
+          path: artifacts/*
+          retention-days: 14
+          compression-level: 0 # already-compressed payloads
+
+      - name: Publish GitHub Release
+        if: steps.ver.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Continue, not Stop: gh writes to stderr on the "does it exist?" probe, and
+          # under Stop that surfaces as a terminating error before we read the exit code.
+          $ErrorActionPreference = 'Continue'
+          $tag = '${{ steps.ver.outputs.tag }}'
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            $ghArgs = @('release', 'create', $tag,
+                        '--title', "v${{ steps.ver.outputs.version }}",
+                        '--generate-notes', '--verify-tag')
+            if ('${{ steps.ver.outputs.is_prerelease }}' -eq 'true') {
+              $ghArgs += @('--prerelease', '--draft')
+            }
+            gh @ghArgs
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed ($LASTEXITCODE)" }
+          } else {
+            Write-Host "Release $tag exists; re-uploading assets."
+          }
+
+          # --clobber makes a re-run idempotent.
+          gh release upload $tag `
+            'artifacts/ButlerUtilitySetup.exe' `
+            'artifacts/ButlerUtility.zip' `
+            'artifacts/SHA256SUMS.txt' --clobber
+          if ($LASTEXITCODE -ne 0) { throw "gh release upload failed ($LASTEXITCODE)" }
+
+          "`n**Release:** https://github.com/${{ github.repository }}/releases/tag/$tag" |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
+
+  # Users are told about a release by the feed XMLs on main, not by the release itself.
+  # Running this after the release exists is what keeps the ordering safe: nobody is
+  # pointed at a version whose assets are not downloadable yet.
+  announce-update:
+    needs: build-and-release
+    if: needs.build-and-release.outputs.should_release == 'true' && needs.build-and-release.outputs.is_prerelease == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # commit the feed bump to main
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout main (feeds only)
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 1
+          # Sparse: keeps the large committed binaries out of this checkout.
+          sparse-checkout: |
+            updater-installed.xml
+            updater-portable.xml
+          sparse-checkout-cone-mode: false
+
+      - name: Advertise the new version
+        env:
+          VERSION: ${{ needs.build-and-release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          for f in updater-installed.xml updater-portable.xml; do
+            sed -i -E "s#<version>[^<]*</version>#<version>${VERSION}</version>#" "$f"
+          done
+
+          if git diff --quiet; then
+            echo "Feeds already advertise ${VERSION}; nothing to do."
+            exit 0
+          fi
+
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "Advertise ${VERSION} in the update feeds"
+          git push origin HEAD:main
+
+          echo "Update feeds now advertise ${VERSION}." >> "$GITHUB_STEP_SUMMARY"
