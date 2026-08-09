@@ -1,0 +1,52 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ItchioButlerUtility.App"
+             RequestedThemeVariant="Dark">
+    <Application.Styles>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <!-- itch.io-inspired dark neutral palette with dusty coral accent -->
+                <ColorPaletteResources x:Key="Dark"
+                                       Accent="#C56767"
+                                       RegionColor="#18171C"
+                                       AltHigh="#18171C"
+                                       AltMediumHigh="#29282E"
+                                       AltMedium="#262529"
+                                       AltMediumLow="#29282E"
+                                       AltLow="#18171C"
+                                       ChromeMediumLow="#2F2E35"
+                                       ChromeMedium="#2B2A31"
+                                       ChromeLow="#34333B"
+                                       ChromeHigh="#4D4B54"
+                                       ChromeGray="#9C9A92"
+                                       BaseLow="#3A383F"
+                                       BaseMediumLow="#767470"
+                                       BaseMedium="#9C9A92"
+                                       BaseMediumHigh="#CFCEC4"
+                                       BaseHigh="#FFFFF1"
+                                       ChromeDisabledHigh="#3A383F"
+                                       ChromeDisabledLow="#767470"
+                                       ChromeBlackHigh="#000000"
+                                       ChromeBlackMedium="#000000"
+                                       ChromeBlackMediumLow="#000000"
+                                       ChromeBlackLow="#000000"
+                                       ChromeAltLow="#CFCEC4"
+                                       ChromeWhite="#FFFFFF"/>
+            </FluentTheme.Palettes>
+        </FluentTheme>
+
+        <!-- Shared chrome -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#29282E"/>
+            <Setter Property="BorderBrush" Value="#3A383F"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+        <Style Selector="TextBlock.sectionHeader">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#E8A0A0"/>
+        </Style>
+    </Application.Styles>
+</Application>

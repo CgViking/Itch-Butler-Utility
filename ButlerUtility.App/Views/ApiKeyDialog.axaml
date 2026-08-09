@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ItchioButlerUtility.Views.ApiKeyDialog"
+        Title="itch.io API key"
+        Icon="/Assets/app.ico"
+        Width="500" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Margin="20" Spacing="14">
+        <TextBlock TextWrapping="Wrap"
+                   Text="Syncing games requires a personal itch.io API key with the profile:games scope. butler's own credentials don't have this scope.&#x0a;&#x0a;Generate or copy one from your itch.io account settings, then paste it below. It is stored encrypted on this machine."/>
+
+        <Button Content="Open itch.io API keys page ↗" Click="OpenKeysPage"/>
+
+        <Grid ColumnDefinitions="Auto,10,*">
+            <TextBlock Grid.Column="0" Text="API key:" VerticalAlignment="Center"/>
+            <TextBox Grid.Column="2" x:Name="KeyBox"
+                     PasswordChar="•" Classes="revealPasswordButton"
+                     Watermark="paste your API key"/>
+        </Grid>
+
+        <TextBlock x:Name="ErrorText" Foreground="#E08585" IsVisible="False" TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+            <Button Content="Save" Classes="accent" IsDefault="True" Click="SaveClick" MinWidth="80"/>
+            <Button Content="Cancel" IsCancel="True" Click="CancelClick" MinWidth="80"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

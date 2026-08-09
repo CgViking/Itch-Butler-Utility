@@ -1,0 +1,247 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:ItchioButlerUtility.ViewModels"
+        x:Class="ItchioButlerUtility.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Itch.io Butler Utility"
+        Icon="/Assets/app.ico"
+        Width="960" Height="680"
+        MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Styles>
+        <Style Selector="TextBox.field">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.fieldLabel">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+            <Setter Property="Foreground" Value="#A5A39B"/>
+        </Style>
+        <Style Selector="TreeViewItem">
+            <Setter Property="IsExpanded" Value="True"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="20">
+
+        <!-- Header bar -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,12,*" Margin="0,0,0,16">
+            <Image Grid.Column="0" Source="/Assets/app.png" Width="32" Height="32"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <TextBlock Text="Itch.io Butler Utility" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding AppVersion}" FontSize="12" Foreground="#767470"
+                           VerticalAlignment="Center" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Status strip -->
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto" Margin="0,12,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Status:" Foreground="#9C9A92"/>
+                <TextBlock Text="{Binding LoginStatusText}" Foreground="{Binding LoginStatusBrush}"/>
+            </StackPanel>
+            <Panel Grid.Column="2">
+                <TextBlock Text="{Binding UpdateText}" Foreground="#9C9A92" VerticalAlignment="Center"
+                           IsVisible="{Binding !IsUpdateAvailable}"/>
+                <Button Content="{Binding UpdateText}" Command="{Binding OpenReleasesCommand}"
+                        IsVisible="{Binding IsUpdateAvailable}"
+                        Background="Transparent" Foreground="#F6C177"
+                        Padding="2,0" Cursor="Hand" FontSize="13"
+                        ToolTip.Tip="Open the releases page to download the update."/>
+            </Panel>
+        </Grid>
+
+        <!-- Output panel: headline, progress, console -->
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,14,0,0"
+                    IsVisible="{Binding IsOutputVisible}">
+            <TextBlock Text="{Binding ResultHeadline}"
+                       Foreground="{Binding HeadlineBrush}"
+                       FontWeight="SemiBold" TextWrapping="Wrap"
+                       IsVisible="{Binding ResultHeadline, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+
+            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+                <ProgressBar Grid.Column="0" Minimum="0" Maximum="100"
+                             Value="{Binding ProgressPercent}" Height="14"/>
+                <TextBlock Grid.Column="2" Text="{Binding ProgressStatus}"
+                           VerticalAlignment="Center" FontSize="12" Foreground="#CFCEC4"/>
+                <Button Grid.Column="4" Content="Cancel" Command="{Binding CancelCommand}"
+                        IsVisible="{Binding IsBusy}" Padding="10,2"
+                        ToolTip.Tip="Stop the running butler operation."/>
+            </Grid>
+
+            <Border Background="#141414" BorderBrush="#3A383F" BorderThickness="1"
+                    CornerRadius="6" Padding="10" Height="170">
+                <ScrollViewer x:Name="ConsoleScroll">
+                    <SelectableTextBlock Text="{Binding ConsoleText}"
+                                         FontFamily="Consolas,Cascadia Mono,Menlo,monospace"
+                                         FontSize="12" Foreground="#CFCEC4"
+                                         TextWrapping="Wrap"/>
+                </ScrollViewer>
+            </Border>
+        </StackPanel>
+
+        <!-- Main content -->
+        <Grid ColumnDefinitions="*,14,Auto,0,Auto">
+
+            <!-- Build details card -->
+            <Border Grid.Column="0" Classes="card">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="sectionHeader" Text="BUILD DETAILS" Margin="0,0,0,2"/>
+
+                    <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto,10,Auto,10,Auto,10,Auto,10,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Classes="fieldLabel" Text="Build folder"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Classes="field"
+                                 Text="{Binding BuildPath}"
+                                 Watermark="Folder containing your game files"
+                                 ToolTip.Tip="Enter the folder path where your game files are located."/>
+                        <Button Grid.Row="0" Grid.Column="2" Content="Browse…" Margin="8,0,0,0"
+                                Command="{Binding BrowseCommand}"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Classes="fieldLabel" Text="Username"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
+                                 Text="{Binding Username}"
+                                 Watermark="your-itch-username"
+                                 ToolTip.Tip="Itch.io username (lives on the Game — changing it cascades to every build under it)."/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Classes="fieldLabel" Text="Game (slug)"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
+                                 Text="{Binding GameSlug}"
+                                 Watermark="game-slug-from-the-url"
+                                 ToolTip.Tip="Game slug exactly as it appears in the URL of the game page."/>
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Classes="fieldLabel" Text="Channel tag"/>
+                        <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
+                                 Text="{Binding Tag}"
+                                 Watermark="e.g. win-64, linux, win-beta (optional)"
+                                 ToolTip.Tip="Channel tag (e.g., win-64, linux, win-beta). Optional."/>
+
+                        <TextBlock Grid.Row="8" Grid.Column="0" Classes="fieldLabel" Text="Version"/>
+                        <Grid Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" ColumnDefinitions="160,12,*">
+                            <TextBox Grid.Column="0" Classes="field"
+                                     Text="{Binding Version}"
+                                     Watermark="1.0.0 (optional)"
+                                     ToolTip.Tip="Optional version number (e.g., 1.0.0). Leave empty to skip."/>
+                            <TextBlock Grid.Column="2" Text="{Binding VersionHint}"
+                                       VerticalAlignment="Center" Foreground="#9C9A92" FontSize="12"/>
+                        </Grid>
+                    </Grid>
+
+                    <StackPanel Orientation="Horizontal" Spacing="20">
+                        <CheckBox IsChecked="{Binding IfChanged}" Content="Skip if unchanged"
+                                  ToolTip.Tip="Adds --if-changed: butler skips the upload if contents match the latest build."/>
+                        <CheckBox IsChecked="{Binding Hidden}" Content="Hidden channel"
+                                  ToolTip.Tip="Adds --hidden: new channel stays hidden on the game page. Great for betas / dev pushes."/>
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="110,*">
+                        <TextBlock Grid.Column="0" Classes="fieldLabel" Text="Ignore"/>
+                        <TextBox Grid.Column="1" Classes="field"
+                                 Text="{Binding IgnoreText}"
+                                 Watermark="*.pdb, *.dSYM (comma-separated, optional)"
+                                 ToolTip.Tip="Comma-separated patterns. Each becomes a --ignore flag (e.g., *.pdb,*.dSYM)."/>
+                    </Grid>
+
+                    <WrapPanel Margin="0,6,0,0">
+                        <WrapPanel.Styles>
+                            <Style Selector="Button">
+                                <Setter Property="Margin" Value="0,0,8,8"/>
+                            </Style>
+                        </WrapPanel.Styles>
+                        <Button Content="▲ Push" Classes="accent"
+                                Command="{Binding PushCommand}"
+                                ToolTip.Tip="Run butler push with the current fields and flags."/>
+                        <Button Content="{Binding SaveButtonText}"
+                                Command="{Binding SaveToLibraryCommand}"
+                                ToolTip.Tip="Save the form contents into the selected library entry."/>
+                        <Button Content="Validate"
+                                Command="{Binding ValidateCommand}"
+                                ToolTip.Tip="Run butler validate on the build folder."/>
+                        <Button Content="Status"
+                                Command="{Binding StatusCommand}"
+                                ToolTip.Tip="Run butler status for the current user/game."/>
+                        <Button Content="Generate .bat"
+                                Command="{Binding GenerateBatCommand}"
+                                ToolTip.Tip="Write a .bat file equivalent to the current Push command."/>
+                        <Button Content="Login"
+                                Command="{Binding LoginCommand}"
+                                ToolTip.Tip="Log in with butler using the provided username."/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Library card -->
+            <Border Grid.Column="2" Classes="card" Width="312"
+                    IsVisible="{Binding Library.IsLibraryVisible}">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <TextBlock Grid.Row="0" Classes="sectionHeader" Text="LIBRARY"/>
+
+                    <TextBox Grid.Row="1" Margin="0,12,0,10"
+                             Text="{Binding Library.FilterText}"
+                             Watermark="Search games…"
+                             ToolTip.Tip="Filter games and builds by name."/>
+
+                    <Border Grid.Row="2" BorderBrush="#3A383F" BorderThickness="1" CornerRadius="6"
+                            Background="#141414">
+                        <TreeView ItemsSource="{Binding Library.FilteredGames}"
+                                  SelectedItem="{Binding Library.SelectedNode}">
+                            <TreeView.DataTemplates>
+                                <TreeDataTemplate DataType="vm:GameNodeViewModel" ItemsSource="{Binding FilteredBuilds}">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold">
+                                        <TextBlock.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Add build" Command="{Binding AddBuildCommand}"/>
+                                                <MenuItem Header="Duplicate" Command="{Binding DuplicateCommand}"/>
+                                                <Separator/>
+                                                <MenuItem Header="Delete…" Command="{Binding DeleteCommand}"/>
+                                            </ContextMenu>
+                                        </TextBlock.ContextMenu>
+                                    </TextBlock>
+                                </TreeDataTemplate>
+                                <DataTemplate DataType="vm:BuildNodeViewModel">
+                                    <TextBlock Text="{Binding Name}">
+                                        <TextBlock.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Push" Command="{Binding PushCommand}"/>
+                                                <MenuItem Header="Duplicate" Command="{Binding DuplicateCommand}"/>
+                                                <Separator/>
+                                                <MenuItem Header="Delete…" Command="{Binding DeleteCommand}"/>
+                                            </ContextMenu>
+                                        </TextBlock.ContextMenu>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </TreeView.DataTemplates>
+                        </TreeView>
+                    </Border>
+
+                    <WrapPanel Grid.Row="3" Margin="0,10,0,0">
+                        <WrapPanel.Styles>
+                            <Style Selector="Button">
+                                <Setter Property="Margin" Value="0,0,6,6"/>
+                                <Setter Property="Padding" Value="8,4"/>
+                                <Setter Property="FontSize" Value="12"/>
+                            </Style>
+                        </WrapPanel.Styles>
+                        <Button Content="⟳ Sync" Command="{Binding Library.SyncCommand}"
+                                ToolTip.Tip="Fetch your games and channels from itch.io. Local paths and flags are preserved."/>
+                        <Button Content="+ Game" Command="{Binding Library.AddGameCommand}"
+                                ToolTip.Tip="Add a new game entry."/>
+                        <Button Content="+ Build" Command="{Binding Library.AddBuildCommand}"
+                                ToolTip.Tip="Add a new build under the selected game."/>
+                        <Button Content="Duplicate" Command="{Binding Library.DuplicateSelectedCommand}"
+                                ToolTip.Tip="Duplicate the selected game or build."/>
+                        <Button Content="Delete" Command="{Binding Library.DeleteSelectedCommand}"
+                                ToolTip.Tip="Delete the selected game or build."/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+
+            <!-- Sidebar toggle -->
+            <Button Grid.Column="4" Content="{Binding Library.ToggleGlyph}"
+                    Command="{Binding Library.ToggleLibraryCommand}"
+                    VerticalAlignment="Stretch" VerticalContentAlignment="Center"
+                    Padding="6,0" Margin="8,0,0,0"
+                    ToolTip.Tip="Show or hide the saved-games sidebar."/>
+        </Grid>
+    </DockPanel>
+</Window>
