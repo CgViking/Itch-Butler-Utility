@@ -12,7 +12,10 @@
     <!-- Local-build fallback only. Releases are versioned from the git tag:
          the release workflow passes -p:Version=<tag>. -->
     <Version>1.1.0</Version>
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Keeps the win-x64 graph in project.assets.json for every restore, so a
+         RID-specific publish still works right after a plain build. Without it,
+         publishing after a Debug build fails with NETSDK1047. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,12 +28,14 @@
     </Content>
   </ItemGroup>
 
+  <!-- Exact versions, not 11.3.*: a release build must not change because a patch
+       was published. Bump these deliberately (Dependabot opens the PRs). -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.*" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.*" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.*" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.*" />
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.*" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Avalonia" Version="11.3.19" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.19" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.19" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.19" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.19" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />

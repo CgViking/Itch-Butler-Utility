@@ -8,3 +8,11 @@ updates:
       interval: monthly
     commit-message:
       prefix: ci
+
+  # Package versions are pinned exactly in the csproj; this is how they get bumped.
+  - package-ecosystem: nuget
+    directory: /ButlerUtility.App
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: deps

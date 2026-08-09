@@ -100,14 +100,12 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
-          cache: true
-          cache-dependency-path: ButlerUtility.App/packages.lock.json
 
-      # --locked-mode: a lock file that no longer matches the csproj fails the build
-      # instead of silently resolving a different Avalonia patch.
+      # Package versions are pinned exactly in the csproj, so this resolves the same
+      # graph every time without a lock file.
       - name: Restore
         run: |
-          dotnet restore "$env:PROJECT" -r win-x64 --locked-mode
+          dotnet restore "$env:PROJECT" -r win-x64
           if ($LASTEXITCODE -ne 0) { throw "restore failed ($LASTEXITCODE)" }
 
       # Publish the csproj, not "Butler Utility.sln" — avoids the space in the sln name.
