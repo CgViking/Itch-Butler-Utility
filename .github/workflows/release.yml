@@ -172,6 +172,9 @@ jobs:
           # banner and exits non-zero, hence Continue.
           $ErrorActionPreference = 'Continue'
           $banner = (& $iscc 2>&1 | Out-String)
+          # The pwsh step wrapper ends with "exit $LASTEXITCODE", so this non-zero
+          # exit would fail the step even though nothing went wrong.
+          $global:LASTEXITCODE = 0
           $ErrorActionPreference = 'Stop'
           Write-Host ($banner -split "`n" | Select-Object -First 2)
 
