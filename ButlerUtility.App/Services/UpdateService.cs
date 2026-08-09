@@ -11,17 +11,23 @@ namespace ItchioButlerUtility.Services;
 public record UpdateCheckResult(bool UpdateAvailable, Version? LatestVersion, string ReleasesUrl);
 
 /// <summary>
-/// Checks the repo's AutoUpdater.NET-style XML feeds (kept unchanged so 1.x clients
-/// can still update). When an update exists the UI links to the releases page.
+/// Checks the repo's AutoUpdater.NET-style XML feeds on the main branch; the release
+/// workflow bumps them once a release is live. When an update exists the UI links to
+/// the releases page.
 /// </summary>
+/// <remarks>
+/// These URLs use the current repo name. Builds up to 1.1.0 have the pre-rename name
+/// (Itch.io-Butler-Utility) compiled in and reach these files through GitHub's rename
+/// redirect, so that name must never be claimed by another repository.
+/// </remarks>
 public class UpdateService
 {
     private const string InstalledFeedUrl =
-        "https://raw.githubusercontent.com/CgViking/Itch.io-Butler-Utility/main/updater-installed.xml";
+        "https://raw.githubusercontent.com/CgViking/Itch-Butler-Utility/main/updater-installed.xml";
     private const string PortableFeedUrl =
-        "https://raw.githubusercontent.com/CgViking/Itch.io-Butler-Utility/main/updater-portable.xml";
+        "https://raw.githubusercontent.com/CgViking/Itch-Butler-Utility/main/updater-portable.xml";
     private const string DefaultReleasesUrl =
-        "https://github.com/CgViking/Itch.io-Butler-Utility/releases";
+        "https://github.com/CgViking/Itch-Butler-Utility/releases";
 
     private readonly HttpClient _http;
 
