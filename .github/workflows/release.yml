@@ -206,15 +206,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
           if (-not (Test-Path -LiteralPath $env:SETUP_OUT)) { throw "No installer at $env:SETUP_OUT" }
 
-          # Inno derives VersionInfoVersion from AppVersion, so this confirms /D landed.
+          # The .iss sets VersionInfoVersion from MyAppVersion, so this is the check that
+          # /DMyAppVersion actually took effect — the mislabelled-installer failure mode
+          # the #ifndef guard exists to prevent. Absence of the resource is itself a fault.
           $stamped = (Get-Item -LiteralPath $env:SETUP_OUT).VersionInfo.FileVersion
           if ([string]::IsNullOrWhiteSpace($stamped)) {
-            Write-Host "::warning::Installer carries no version resource; skipping version assertion."
-          } else {
-            $got = [version]$stamped; $want = [version]$version
-            if ($got.Major -ne $want.Major -or $got.Minor -ne $want.Minor -or $got.Build -ne $want.Build) {
-              throw "Installer is stamped '$got' but the version should be '$want'."
-            }
+            throw "Installer carries no version resource; VersionInfoVersion did not take effect."
+          }
+          $got = [version]$stamped; $want = [version]$version
+          if ($got.Major -ne $want.Major -or $got.Minor -ne $want.Minor -or $got.Build -ne $want.Build) {
+            throw "Installer is stamped '$got' but the version should be '$want'."
           }
           "Installer OK: {0:N1} MB, version $stamped" -f ((Get-Item -LiteralPath $env:SETUP_OUT).Length / 1MB)
 

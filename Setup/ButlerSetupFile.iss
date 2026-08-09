@@ -18,6 +18,9 @@
 AppId={{8D7EB7C8-2639-45B7-8676-70F0BC01498B}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+; Stamps the setup .exe itself, so the version is visible in file properties and
+; the release workflow can assert that /DMyAppVersion actually took effect.
+VersionInfoVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
