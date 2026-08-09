@@ -31,13 +31,13 @@
   <!-- Exact versions, not 11.3.*: a release build must not change because a patch
        was published. Bump these deliberately (Dependabot opens the PRs). -->
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.3.19" />
+    <PackageReference Include="Avalonia" Version="12.0.1" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.19" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.19" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.19" />
     <PackageReference Include="Avalonia.Diagnostics" Version="11.3.19" Condition="'$(Configuration)' == 'Debug'" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />
+    <PackageReference Include="MessageBox.Avalonia" Version="12.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
 </Project>
