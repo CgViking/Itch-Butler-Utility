@@ -167,14 +167,28 @@ jobs:
           }
           if (-not $iscc) { throw "ISCC.exe not found." }
 
-          # ArchitecturesAllowed=x64compatible needs Inno Setup 6.3+.
-          $raw = (Get-Item -LiteralPath $iscc).VersionInfo.ProductVersion
-          if ($raw -notmatch '(\d+)\.(\d+)') { throw "Cannot parse ISCC version '$raw'." }
-          if ([version]"$($Matches[1]).$($Matches[2])" -lt [version]'6.3') {
-            throw "Found Inno Setup $raw; ArchitecturesAllowed=x64compatible needs 6.3 or newer."
+          # ISCC.exe carries no usable version resource (ProductVersion reads 0.0.0.0),
+          # so read the banner it prints instead. Run with no arguments it prints that
+          # banner and exits non-zero, hence Continue.
+          $ErrorActionPreference = 'Continue'
+          $banner = (& $iscc 2>&1 | Out-String)
+          $ErrorActionPreference = 'Stop'
+          Write-Host ($banner -split "`n" | Select-Object -First 2)
+
+          if ($banner -match 'Inno Setup\s+(\d+)\.(\d+)') {
+            # ArchitecturesAllowed=x64compatible needs Inno Setup 6.3+.
+            $v = [version]"$($Matches[1]).$($Matches[2])"
+            if ($v -lt [version]'6.3') {
+              throw "Found Inno Setup $v; ArchitecturesAllowed=x64compatible needs 6.3 or newer."
+            }
+            Write-Host "Using $iscc (Inno Setup $v)"
+          } else {
+            # Not fatal: an unsupported directive fails the compile step with a clear
+            # error, so an unreadable banner must not block a working toolchain.
+            Write-Host "::warning::Could not read a version from the ISCC banner; relying on the compile step."
+            Write-Host "Using $iscc"
           }
 
-          Write-Host "Using $iscc (Inno Setup $raw)"
           "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Compile installer
