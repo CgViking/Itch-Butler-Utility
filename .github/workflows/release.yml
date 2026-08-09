@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Build and upload workflow artifacts only; do not create a GitHub Release.'
+        description: 'Dry run — build and upload artifacts only, create no release'
         type: boolean
         default: true
 
@@ -149,8 +149,10 @@ jobs:
               "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
               "$env:ProgramFiles\Inno Setup 7\ISCC.exe"
               "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe"
-            ) | Where-Object { Test-Path -LiteralPath $_ }
-            if ($candidates) { return $candidates[0] }
+            ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            # Select-Object, not [0]: a pipeline yielding one match returns a string,
+            # and indexing a string gives its first character.
+            if ($candidates) { return $candidates }
             $cmd = Get-Command iscc -ErrorAction SilentlyContinue
             if ($cmd) { return $cmd.Source }
             return $null
