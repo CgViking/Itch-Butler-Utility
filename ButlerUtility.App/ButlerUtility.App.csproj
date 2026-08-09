@@ -9,7 +9,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationIcon>Assets/app.ico</ApplicationIcon>
+    <!-- Local-build fallback only. Releases are versioned from the git tag:
+         the release workflow passes -p:Version=<tag>. -->
     <Version>1.1.0</Version>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>

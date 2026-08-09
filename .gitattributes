@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# butler.exe is a 22 MB blob committed to the repo. Binary auto-detection already
+# handles it, but stating it removes any chance of eol conversion touching it.
+*.exe binary

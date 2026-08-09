@@ -4,7 +4,11 @@
 ; then compile this script from the Setup\ directory.
 
 #define MyAppName "Itch.io Butler Utility"
-#define MyAppVersion "1.1.0"
+; CI passes /DMyAppVersion=<tag> — the guard matters, because an unguarded #define
+; here would silently win over the command line and mislabel the installer.
+#ifndef MyAppVersion
+  #define MyAppVersion "1.1.0"
+#endif
 #define MyAppPublisher "CgViking"
 #define MyAppExeName "Itch.io Butler Utility.exe"
 #define PublishDir "..\ButlerUtility.App\bin\Release\net8.0\win-x64\publish"
