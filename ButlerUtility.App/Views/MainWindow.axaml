@@ -6,7 +6,7 @@
         Title="Itch.io Butler Utility"
         Icon="/Assets/app.ico"
         Width="960" Height="680"
-        MinWidth="760" MinHeight="520"
+        MinWidth="760" MinHeight="495"
         WindowStartupLocation="CenterScreen">
 
     <Window.Styles>
@@ -23,152 +23,112 @@
         </Style>
     </Window.Styles>
 
-    <DockPanel Margin="20">
+    <!-- Rows, not docks. A DockPanel hands the fill child whatever is left over and
+         clamps at zero, so the content used to overflow *on top of* the console and the
+         status strip once the window got short. Grid rows are laid out in sequence and
+         can never overlap.
+
+         With the output drawer open, content and output are BOTH star rows, and the
+         min/max on them is what sets the priority between them:
+           * spare height goes to the content row, because the output row caps at 246
+             (drawer header, progress row and margins plus a 170 console) and stops
+             taking its share;
+           * missing height comes out of the console first, because the content row is
+             pinned at 320 — the full height of the build-details form — until the output
+             row bottoms out at 156 (an 80px console).
+         The console is the right thing to squeeze: it has its own scrollbar, the form and
+         the library do not. See ApplyOutputLayout in the code-behind. -->
+    <Grid x:Name="RootGrid" Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>                <!-- header -->
+            <RowDefinition Height="*" MinHeight="320"/>   <!-- content -->
+            <RowDefinition Height="Auto"/>                <!-- action bar -->
+            <!-- Output, index 3. Collapsed shape; ApplyOutputLayout in the code-behind
+                 looks it up by that index and swaps it to star when the drawer opens. -->
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>                <!-- status -->
+        </Grid.RowDefinitions>
 
         <!-- Header bar -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,12,*" Margin="0,0,0,16">
-            <Image Grid.Column="0" Source="/Assets/app.png" Width="32" Height="32"/>
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,12,*" Margin="0,0,0,10">
+            <Image Grid.Column="0" Source="/Assets/app.png" Width="26" Height="26"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                <TextBlock Text="Itch.io Butler Utility" FontSize="18" FontWeight="SemiBold"/>
+                <TextBlock Text="Itch.io Butler Utility" FontSize="16" FontWeight="SemiBold"/>
                 <TextBlock Text="{Binding AppVersion}" FontSize="12" Foreground="#767470"
-                           VerticalAlignment="Center" Margin="0,4,0,0"/>
+                           VerticalAlignment="Center" Margin="0,3,0,0"/>
             </StackPanel>
         </Grid>
-
-        <!-- Status strip -->
-        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto" Margin="0,12,0,0">
-            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                <TextBlock Text="Status:" Foreground="#9C9A92"/>
-                <TextBlock Text="{Binding LoginStatusText}" Foreground="{Binding LoginStatusBrush}"/>
-            </StackPanel>
-            <Panel Grid.Column="2">
-                <TextBlock Text="{Binding UpdateText}" Foreground="#9C9A92" VerticalAlignment="Center"
-                           IsVisible="{Binding !IsUpdateAvailable}"/>
-                <Button Content="{Binding UpdateText}" Command="{Binding OpenReleasesCommand}"
-                        IsVisible="{Binding IsUpdateAvailable}"
-                        Background="Transparent" Foreground="#F6C177"
-                        Padding="2,0" Cursor="Hand" FontSize="13"
-                        ToolTip.Tip="Open the releases page to download the update."/>
-            </Panel>
-        </Grid>
-
-        <!-- Output panel: headline, progress, console -->
-        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,14,0,0"
-                    IsVisible="{Binding IsOutputVisible}">
-            <TextBlock Text="{Binding ResultHeadline}"
-                       Foreground="{Binding HeadlineBrush}"
-                       FontWeight="SemiBold" TextWrapping="Wrap"
-                       IsVisible="{Binding ResultHeadline, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-
-            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
-                <ProgressBar Grid.Column="0" Minimum="0" Maximum="100"
-                             Value="{Binding ProgressPercent}" Height="14"/>
-                <TextBlock Grid.Column="2" Text="{Binding ProgressStatus}"
-                           VerticalAlignment="Center" FontSize="12" Foreground="#CFCEC4"/>
-                <Button Grid.Column="4" Content="Cancel" Command="{Binding CancelCommand}"
-                        IsVisible="{Binding IsBusy}" Padding="10,2"
-                        ToolTip.Tip="Stop the running butler operation."/>
-            </Grid>
-
-            <Border Background="#141414" BorderBrush="#3A383F" BorderThickness="1"
-                    CornerRadius="6" Padding="10" Height="170">
-                <ScrollViewer x:Name="ConsoleScroll">
-                    <SelectableTextBlock Text="{Binding ConsoleText}"
-                                         FontFamily="Consolas,Cascadia Mono,Menlo,monospace"
-                                         FontSize="12" Foreground="#CFCEC4"
-                                         TextWrapping="Wrap"/>
-                </ScrollViewer>
-            </Border>
-        </StackPanel>
 
         <!-- Main content -->
-        <Grid ColumnDefinitions="*,14,Auto,0,Auto">
+        <Grid Grid.Row="1" ColumnDefinitions="*,14,Auto,0,Auto">
 
-            <!-- Build details card -->
-            <Border Grid.Column="0" Classes="card">
-                <StackPanel Spacing="12">
-                    <TextBlock Classes="sectionHeader" Text="BUILD DETAILS" Margin="0,0,0,2"/>
+            <!-- Build details card. This column is the only thing that scrolls: on a
+                 short window the form scrolls inside itself instead of overflowing.
+                 The library is deliberately NOT in the scroller — inside one, its
+                 TreeView measures at full content height, so the whole card slides down
+                 under the action bar and console instead of scrolling internally. -->
+            <ScrollViewer Grid.Column="0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <Border Classes="card">
+                    <StackPanel Spacing="8">
+                        <TextBlock Classes="sectionHeader" Text="BUILD DETAILS" Margin="0,0,0,2"/>
 
-                    <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto,10,Auto,10,Auto,10,Auto,10,Auto">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Classes="fieldLabel" Text="Build folder"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" Classes="field"
-                                 Text="{Binding BuildPath}"
-                                 Watermark="Folder containing your game files"
-                                 ToolTip.Tip="Enter the folder path where your game files are located."/>
-                        <Button Grid.Row="0" Grid.Column="2" Content="Browse…" Margin="8,0,0,0"
-                                Command="{Binding BrowseCommand}"/>
+                        <Grid ColumnDefinitions="96,*,Auto" RowDefinitions="Auto,7,Auto,7,Auto,7,Auto,7,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Classes="fieldLabel" Text="Build folder"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" Classes="field"
+                                     Text="{Binding BuildPath}"
+                                     Watermark="Folder containing your game files"
+                                     ToolTip.Tip="Enter the folder path where your game files are located."/>
+                            <Button Grid.Row="0" Grid.Column="2" Content="Browse…" Margin="8,0,0,0"
+                                    Command="{Binding BrowseCommand}"/>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Classes="fieldLabel" Text="Username"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
-                                 Text="{Binding Username}"
-                                 Watermark="your-itch-username"
-                                 ToolTip.Tip="Itch.io username (lives on the Game — changing it cascades to every build under it)."/>
+                            <TextBlock Grid.Row="2" Grid.Column="0" Classes="fieldLabel" Text="Username"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
+                                     Text="{Binding Username}"
+                                     Watermark="your-itch-username"
+                                     ToolTip.Tip="Itch.io username (lives on the Game — changing it cascades to every build under it)."/>
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Classes="fieldLabel" Text="Game (slug)"/>
-                        <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
-                                 Text="{Binding GameSlug}"
-                                 Watermark="game-slug-from-the-url"
-                                 ToolTip.Tip="Game slug exactly as it appears in the URL of the game page."/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Classes="fieldLabel" Text="Game (slug)"/>
+                            <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
+                                     Text="{Binding GameSlug}"
+                                     Watermark="game-slug-from-the-url"
+                                     ToolTip.Tip="Game slug exactly as it appears in the URL of the game page."/>
 
-                        <TextBlock Grid.Row="6" Grid.Column="0" Classes="fieldLabel" Text="Channel tag"/>
-                        <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
-                                 Text="{Binding Tag}"
-                                 Watermark="e.g. win-64, linux, win-beta (optional)"
-                                 ToolTip.Tip="Channel tag (e.g., win-64, linux, win-beta). Optional."/>
+                            <TextBlock Grid.Row="6" Grid.Column="0" Classes="fieldLabel" Text="Channel tag"/>
+                            <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Classes="field"
+                                     Text="{Binding Tag}"
+                                     Watermark="e.g. win-64, linux, win-beta (optional)"
+                                     ToolTip.Tip="Channel tag (e.g., win-64, linux, win-beta). Optional."/>
 
-                        <TextBlock Grid.Row="8" Grid.Column="0" Classes="fieldLabel" Text="Version"/>
-                        <Grid Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" ColumnDefinitions="160,12,*">
-                            <TextBox Grid.Column="0" Classes="field"
-                                     Text="{Binding Version}"
-                                     Watermark="1.0.0 (optional)"
-                                     ToolTip.Tip="Optional version number (e.g., 1.0.0). Leave empty to skip."/>
-                            <TextBlock Grid.Column="2" Text="{Binding VersionHint}"
-                                       VerticalAlignment="Center" Foreground="#9C9A92" FontSize="12"/>
+                            <TextBlock Grid.Row="8" Grid.Column="0" Classes="fieldLabel" Text="Version"/>
+                            <Grid Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" ColumnDefinitions="160,12,*">
+                                <TextBox Grid.Column="0" Classes="field"
+                                         Text="{Binding Version}"
+                                         Watermark="1.0.0 (optional)"
+                                         ToolTip.Tip="Optional version number (e.g., 1.0.0). Leave empty to skip."/>
+                                <TextBlock Grid.Column="2" Text="{Binding VersionHint}"
+                                           VerticalAlignment="Center" Foreground="#9C9A92" FontSize="12"/>
+                            </Grid>
                         </Grid>
-                    </Grid>
 
-                    <StackPanel Orientation="Horizontal" Spacing="20">
-                        <CheckBox IsChecked="{Binding IfChanged}" Content="Skip if unchanged"
-                                  ToolTip.Tip="Adds --if-changed: butler skips the upload if contents match the latest build."/>
-                        <CheckBox IsChecked="{Binding Hidden}" Content="Hidden channel"
-                                  ToolTip.Tip="Adds --hidden: new channel stays hidden on the game page. Great for betas / dev pushes."/>
+                        <StackPanel Orientation="Horizontal" Spacing="20">
+                            <CheckBox IsChecked="{Binding IfChanged}" Content="Skip if unchanged"
+                                      ToolTip.Tip="Adds --if-changed: butler skips the upload if contents match the latest build."/>
+                            <CheckBox IsChecked="{Binding Hidden}" Content="Hidden channel"
+                                      ToolTip.Tip="Adds --hidden: new channel stays hidden on the game page. Great for betas / dev pushes."/>
+                        </StackPanel>
+
+                        <Grid ColumnDefinitions="96,*">
+                            <TextBlock Grid.Column="0" Classes="fieldLabel" Text="Ignore"/>
+                            <TextBox Grid.Column="1" Classes="field"
+                                     Text="{Binding IgnoreText}"
+                                     Watermark="*.pdb, *.dSYM (comma-separated, optional)"
+                                     ToolTip.Tip="Comma-separated patterns. Each becomes a --ignore flag (e.g., *.pdb,*.dSYM)."/>
+                        </Grid>
                     </StackPanel>
-
-                    <Grid ColumnDefinitions="110,*">
-                        <TextBlock Grid.Column="0" Classes="fieldLabel" Text="Ignore"/>
-                        <TextBox Grid.Column="1" Classes="field"
-                                 Text="{Binding IgnoreText}"
-                                 Watermark="*.pdb, *.dSYM (comma-separated, optional)"
-                                 ToolTip.Tip="Comma-separated patterns. Each becomes a --ignore flag (e.g., *.pdb,*.dSYM)."/>
-                    </Grid>
-
-                    <WrapPanel Margin="0,6,0,0">
-                        <WrapPanel.Styles>
-                            <Style Selector="Button">
-                                <Setter Property="Margin" Value="0,0,8,8"/>
-                            </Style>
-                        </WrapPanel.Styles>
-                        <Button Content="▲ Push" Classes="accent"
-                                Command="{Binding PushCommand}"
-                                ToolTip.Tip="Run butler push with the current fields and flags."/>
-                        <Button Content="{Binding SaveButtonText}"
-                                Command="{Binding SaveToLibraryCommand}"
-                                ToolTip.Tip="Save the form contents into the selected library entry."/>
-                        <Button Content="Validate"
-                                Command="{Binding ValidateCommand}"
-                                ToolTip.Tip="Run butler validate on the build folder."/>
-                        <Button Content="Status"
-                                Command="{Binding StatusCommand}"
-                                ToolTip.Tip="Run butler status for the current user/game."/>
-                        <Button Content="Generate .bat"
-                                Command="{Binding GenerateBatCommand}"
-                                ToolTip.Tip="Write a .bat file equivalent to the current Push command."/>
-                        <Button Content="Login"
-                                Command="{Binding LoginCommand}"
-                                ToolTip.Tip="Log in with butler using the provided username."/>
-                    </WrapPanel>
-                </StackPanel>
-            </Border>
+                </Border>
+            </ScrollViewer>
 
             <!-- Library card -->
             <Border Grid.Column="2" Classes="card" Width="312"
@@ -176,12 +136,15 @@
                 <Grid RowDefinitions="Auto,Auto,*,Auto">
                     <TextBlock Grid.Row="0" Classes="sectionHeader" Text="LIBRARY"/>
 
-                    <TextBox Grid.Row="1" Margin="0,12,0,10"
+                    <TextBox Grid.Row="1" Margin="0,8,0,8"
                              Text="{Binding Library.FilterText}"
                              Watermark="Search games…"
                              ToolTip.Tip="Filter games and builds by name."/>
 
-                    <Border Grid.Row="2" BorderBrush="#3A383F" BorderThickness="1" CornerRadius="6"
+                    <!-- MinHeight keeps the buttons below from being squeezed off the
+                         card when the window is at its shortest. -->
+                    <Border Grid.Row="2" MinHeight="40"
+                            BorderBrush="#3A383F" BorderThickness="1" CornerRadius="6"
                             Background="#141414">
                         <TreeView ItemsSource="{Binding Library.FilteredGames}"
                                   SelectedItem="{Binding Library.SelectedNode}">
@@ -214,7 +177,7 @@
                         </TreeView>
                     </Border>
 
-                    <WrapPanel Grid.Row="3" Margin="0,10,0,0">
+                    <WrapPanel Grid.Row="3" Margin="0,8,0,0">
                         <WrapPanel.Styles>
                             <Style Selector="Button">
                                 <Setter Property="Margin" Value="0,0,6,6"/>
@@ -243,5 +206,106 @@
                     Padding="6,0" Margin="8,0,0,0"
                     ToolTip.Tip="Show or hide the saved-games sidebar."/>
         </Grid>
-    </DockPanel>
+
+        <!-- Action bar. Full width on purpose: inside the build-details column these six
+             wrapped to two or three rows, and wrapped *more* as the window narrowed —
+             which is what pushed the content down over the console in the first place. -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
+            <WrapPanel Grid.Column="0">
+                <WrapPanel.Styles>
+                    <Style Selector="Button">
+                        <Setter Property="Margin" Value="0,0,8,0"/>
+                    </Style>
+                </WrapPanel.Styles>
+                <Button Content="▲ Push" Classes="accent"
+                        Command="{Binding PushCommand}"
+                        ToolTip.Tip="Run butler push with the current fields and flags."/>
+                <Button Content="{Binding SaveButtonText}"
+                        Command="{Binding SaveToLibraryCommand}"
+                        ToolTip.Tip="Save the form contents into the selected library entry."/>
+                <Button Content="Validate"
+                        Command="{Binding ValidateCommand}"
+                        ToolTip.Tip="Run butler validate on the build folder."/>
+                <Button Content="Status"
+                        Command="{Binding StatusCommand}"
+                        ToolTip.Tip="Run butler status for the current user/game."/>
+                <Button Content="Generate .bat"
+                        Command="{Binding GenerateBatCommand}"
+                        ToolTip.Tip="Write a .bat file equivalent to the current Push command."/>
+            </WrapPanel>
+            <Button Grid.Column="2" Content="Login"
+                    Command="{Binding LoginCommand}"
+                    ToolTip.Tip="Log in with butler using the provided username."/>
+        </Grid>
+
+        <!-- Output drawer. The header strip is always there; the body below it only when
+             expanded. Collapsed on launch, and MainWindow.axaml.cs swaps the row between
+             Auto and star to match, because an empty star row would still hold its share
+             of the window open. Every operation reopens it, so the collapsed state only
+             ever costs you the header. -->
+        <Grid Grid.Row="3" RowDefinitions="Auto,*" Margin="0,10,0,0">
+
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,10,*">
+                <Button Grid.Column="0" Padding="6,2" FontSize="12"
+                        Command="{Binding ToggleOutputCommand}"
+                        ToolTip.Tip="Show or hide the butler output console.">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding OutputGlyph}" FontSize="10" VerticalAlignment="Center"/>
+                        <TextBlock Text="Output" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- Lives in the header so the result of the last run is still readable
+                     with the drawer shut. -->
+                <TextBlock Grid.Column="2" Text="{Binding ResultHeadline}"
+                           Foreground="{Binding HeadlineBrush}"
+                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Grid.Row="1" RowDefinitions="Auto,*" Margin="0,6,0,0"
+                  IsVisible="{Binding IsOutputVisible}">
+                <Grid Grid.Row="0" ColumnDefinitions="*,8,Auto,8,Auto" Margin="0,0,0,6">
+                    <ProgressBar Grid.Column="0" Minimum="0" Maximum="100"
+                                 Value="{Binding ProgressPercent}" Height="14"/>
+                    <TextBlock Grid.Column="2" Text="{Binding ProgressStatus}"
+                               VerticalAlignment="Center" FontSize="12" Foreground="#CFCEC4"/>
+                    <Button Grid.Column="4" Content="Cancel" Command="{Binding CancelCommand}"
+                            IsVisible="{Binding IsBusy}" Padding="10,2"
+                            ToolTip.Tip="Stop the running butler operation."/>
+                </Grid>
+
+                <!-- MinHeight, not Height: the row's MaxHeight caps it at 170 when there
+                     is room, and it gives that back down to 80 when the window gets
+                     short — the console has a scrollbar, the form and library do not. -->
+                <Border Grid.Row="1" MinHeight="80"
+                        Background="#141414" BorderBrush="#3A383F" BorderThickness="1"
+                        CornerRadius="6" Padding="10">
+                    <ScrollViewer x:Name="ConsoleScroll">
+                        <SelectableTextBlock Text="{Binding ConsoleText}"
+                                             FontFamily="Consolas,Cascadia Mono,Menlo,monospace"
+                                             FontSize="12" Foreground="#CFCEC4"
+                                             TextWrapping="Wrap"/>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- Status strip -->
+        <Grid Grid.Row="4" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
+            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Status:" Foreground="#9C9A92"/>
+                <TextBlock Text="{Binding LoginStatusText}" Foreground="{Binding LoginStatusBrush}"/>
+            </StackPanel>
+            <Panel Grid.Column="2">
+                <TextBlock Text="{Binding UpdateText}" Foreground="#9C9A92" VerticalAlignment="Center"
+                           IsVisible="{Binding !IsUpdateAvailable}"/>
+                <Button Content="{Binding UpdateText}" Command="{Binding OpenReleasesCommand}"
+                        IsVisible="{Binding IsUpdateAvailable}"
+                        Background="Transparent" Foreground="#F6C177"
+                        Padding="2,0" Cursor="Hand" FontSize="13"
+                        ToolTip.Tip="Open the releases page to download the update."/>
+            </Panel>
+        </Grid>
+    </Grid>
 </Window>

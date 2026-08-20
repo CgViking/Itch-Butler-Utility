@@ -66,7 +66,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     // --- output / progress ---
     [ObservableProperty] private string _consoleText = "";
-    [ObservableProperty] private bool _isOutputVisible;
+
+    // Collapsed on launch: an empty console is 170px of nothing. Every operation reopens
+    // it (see PrepareOutputPanel / ReportProblem), so it is only ever shut when idle.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OutputGlyph))]
+    private bool _isOutputVisible;
+
+    public string OutputGlyph => IsOutputVisible ? "▾" : "▸";
     [ObservableProperty] private double _progressPercent;
     [ObservableProperty] private string _progressStatus = "";
     [ObservableProperty] private string _resultHeadline = "";
@@ -404,7 +411,10 @@ public partial class MainWindowViewModel : ViewModelBase
             var result = await _butler.RunAsync(args, progress, output, ct);
             if (result.Success)
             {
-                if (trackProgress) SetFinalProgress(100);
+                // Always call this, tracked or not: it is what clears the "Starting…"
+                // label. Guarding the whole call left it on screen for good after an
+                // untracked operation succeeded. Only the bar itself is tracked-only.
+                SetFinalProgress(trackProgress ? 100 : null);
                 SetHeadline($"{operation} completed successfully.", SuccessBrush);
             }
             else
@@ -445,6 +455,9 @@ public partial class MainWindowViewModel : ViewModelBase
         ProgressStatus = "";
         ResultHeadline = "";
     }
+
+    [RelayCommand]
+    private void ToggleOutput() => IsOutputVisible = !IsOutputVisible;
 
     /// <summary>Writes to the output console and makes sure the panel is actually showing.</summary>
     public void ReportProblem(string message)

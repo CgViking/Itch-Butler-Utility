@@ -11,7 +11,7 @@
     <ApplicationIcon>Assets/app.ico</ApplicationIcon>
     <!-- Local-build fallback only. Releases are versioned from the git tag:
          the release workflow passes -p:Version=<tag>. -->
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <!-- Keeps the win-x64 graph in project.assets.json for every restore, so a
          RID-specific publish still works right after a plain build. Without it,
          publishing after a Debug build fails with NETSDK1047. -->
